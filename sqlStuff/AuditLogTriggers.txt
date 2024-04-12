@@ -1,0 +1,132 @@
+CREATE TABLE audit_log (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    username VARCHAR(255),
+    host VARCHAR(255),
+    db VARCHAR(255),
+    table_name VARCHAR(255),
+    action VARCHAR(50),
+    old_values TEXT,
+    new_values TEXT
+);
+
+### INSERT Trigger
+
+
+DELIMITER //
+CREATE TRIGGER your_table_name_after_insert
+AFTER INSERT ON your_table_name
+FOR EACH ROW
+BEGIN
+    INSERT INTO audit_log (username, host, db, table_name, action, new_values)
+    VALUES (USER(), HOST(), DATABASE(), 'your_table_name', 'INSERT', JSON_OBJECT('new_values', JSON_OBJECT('column1', NEW.column1, 'column2', NEW.column2)));
+END;
+//
+DELIMITER ;
+
+
+### UPDATE Trigger
+
+DELIMITER //
+CREATE TRIGGER your_table_name_after_update
+AFTER UPDATE ON your_table_name
+FOR EACH ROW
+BEGIN
+    INSERT INTO audit_log (username, host, db, table_name, action, old_values, new_values)
+    VALUES (USER(), HOST(), DATABASE(), 'your_table_name', 'UPDATE', JSON_OBJECT('old_values', JSON_OBJECT('column1', OLD.column1, 'column2', OLD.column2)), JSON_OBJECT('new_values', JSON_OBJECT('column1', NEW.column1, 'column2', NEW.column2)));
+END;
+//
+DELIMITER ;
+
+
+### DELETE Trigger
+
+
+DELIMITER //
+CREATE TRIGGER your_table_name_after_delete
+AFTER DELETE ON your_table_name
+FOR EACH ROW
+BEGIN
+    INSERT INTO audit_log (username, host, db, table_name, action, old_values)
+    VALUES (USER(), HOST(), DATABASE(), 'your_table_name', 'DELETE', JSON_OBJECT('old_values', JSON_OBJECT('column1', OLD.column1, 'column2', OLD.column2)));
+END;
+//
+DELIMITER ;
+
+
+
+-- Variables for the audit log table name, database name, and the table to monitor
+SET @auditLogTableName = 'audit_log';
+SET @dbName = DATABASE();
+SET @tableName = 'your_table_name';
+
+-- Create the audit log table if it doesn't exist
+SET @createAuditLogTableSQL = CONCAT('
+CREATE TABLE IF NOT EXISTS ', @auditLogTableName, ' (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    username VARCHAR(255),
+    host VARCHAR(255),
+    db VARCHAR(255),
+    table_name VARCHAR(255),
+    action VARCHAR(50),
+    old_values TEXT,
+    new_values TEXT
+);
+');
+PREPARE stmt FROM @createAuditLogTableSQL;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- Create triggers for INSERT, UPDATE, and DELETE
+
+-- INSERT Trigger
+SET @createInsertTriggerSQL = CONCAT('
+DELIMITER //
+CREATE TRIGGER ', @tableName, '_after_insert
+AFTER INSERT ON ', @tableName, '
+FOR EACH ROW
+BEGIN
+    INSERT INTO ', @auditLogTableName, ' (username, host, db, table_name, action, new_values)
+    VALUES (USER(), HOST(), "', @dbName, '", "', @tableName, '", "INSERT", JSON_OBJECT("new_values", JSON_OBJECT("column1", NEW.column1, "column2", NEW.column2)));
+END;
+//
+DELIMITER ;
+');
+PREPARE stmt FROM @createInsertTriggerSQL;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- UPDATE Trigger
+SET @createUpdateTriggerSQL = CONCAT('
+DELIMITER //
+CREATE TRIGGER ', @tableName, '_after_update
+AFTER UPDATE ON ', @tableName, '
+FOR EACH ROW
+BEGIN
+    INSERT INTO ', @auditLogTableName, ' (username, host, db, table_name, action, old_values, new_values)
+    VALUES (USER(), HOST(), "', @dbName, '", "', @tableName, '", "UPDATE", JSON_OBJECT("old_values", JSON_OBJECT("column1", OLD.column1, "column2", OLD.column2)), JSON_OBJECT("new_values", JSON_OBJECT("column1", NEW.column1, "column2", NEW.column2)));
+END;
+//
+DELIMITER ;
+');
+PREPARE stmt FROM @createUpdateTriggerSQL;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- DELETE Trigger
+SET @createDeleteTriggerSQL = CONCAT('
+DELIMITER //
+CREATE TRIGGER ', @tableName, '_after_delete
+AFTER DELETE ON ', @tableName, '
+FOR EACH ROW
+BEGIN
+    INSERT INTO ', @auditLogTableName, ' (username, host, db, table_name, action, old_values)
+    VALUES (USER(), HOST(), "', @dbName, '", "', @tableName, '", "DELETE", JSON_OBJECT("old_values", JSON_OBJECT("column1", OLD.column1, "column2", OLD.column2)));
+END;
+//
+DELIMITER ;
+');
+PREPARE stmt FROM @createDeleteTriggerSQL;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
